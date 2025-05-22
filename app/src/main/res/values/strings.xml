@@ -6,4 +6,7 @@
     <string name="error_server">Server Error</string>
     <string name="error_serialization">Serialization Error</string>
     <string name="error_unknown">Something Wrong has happened.... PANIC!!</string>
+    <string name="market_cap">Market cap</string>
+    <string name="price">Price</string>
+    <string name="change_last_24h">Change last 24h</string>
 </resources>
