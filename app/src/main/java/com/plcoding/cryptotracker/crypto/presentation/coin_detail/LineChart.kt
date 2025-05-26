@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -243,6 +244,45 @@ fun LineChart(
                     ),
                     strokeWidth = style.helperLinesThicknessPx
                 )
+            }
+        }
+
+        drawPoints = visibleDataPointIndices.map {
+            val x =
+                viewPortLeftX + (it - visibleDataPointIndices.first) * xLabelWidth + xLabelWidth / 2f
+            val ratio = (dataPoints[it].y - minYValue) / (maxYValue - minYValue)
+            val y = viewPortBottomY - (ratio * viewPortHeightPx)
+
+            DataPoint(
+                x = x,
+                y = y,
+                xLabel = dataPoints[it].xLabel
+            )
+        }
+
+        drawPoints.forEachIndexed { index, point ->
+            val center = Offset(point.x, point.y)
+            if (isShowingDataPoints) {
+                drawCircle(
+                    color = style.chartLineColor,
+                    center = center,
+                    radius = 10f
+                )
+                if (selectedDataPointIndex == index) {
+                    drawCircle(
+                        color = Color.White,
+                        center = center,
+                        radius = 15f
+                    )
+                    drawCircle(
+                        color = style.selectedColor,
+                        center = center,
+                        radius = 15f,
+                        style = Stroke(
+                            width = 3f
+                        )
+                    )
+                }
             }
         }
     }
