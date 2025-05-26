@@ -12,18 +12,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plcoding.cryptotracker.crypto.domain.CoinPrice
 import com.plcoding.cryptotracker.ui.theme.CryptoTrackerTheme
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 @Composable
@@ -56,7 +60,7 @@ fun LineChart(
 
     val measurer = rememberTextMeasurer()
 
-    val xLabelWidth by remember {
+    var xLabelWidth by remember {
         mutableFloatStateOf(0f)
     }
     LaunchedEffect(key1 = xLabelWidth) {
@@ -67,11 +71,11 @@ fun LineChart(
         dataPoints.indexOf(selectedDataPoint)
     }
 
-    val drawPoints by remember {
+    var drawPoints by remember {
         mutableStateOf(listOf<DataPoint>())
     }
 
-    val isShowingDataPoints by remember {
+    var isShowingDataPoints by remember {
         mutableStateOf(selectedDataPoint != null)
     }
 
@@ -79,10 +83,10 @@ fun LineChart(
         modifier = modifier
             .fillMaxSize()
     ) {
-        val minLabelSpacingYPx = style.minYLabelSpacing.roundToPx()
-        val verticalPaddingPx = style.verticalPadding.roundToPx()
-        val horizontalPaddingPx = style.horizontalPadding.roundToPx()
-        val xAxisLabelSpacingPx = style.xAsisLabelSpacing.roundToPx()
+        val minLabelSpacingYPx = style.minYLabelSpacing.toPx()
+        val verticalPaddingPx = style.verticalPadding.toPx()
+        val horizontalPaddingPx = style.horizontalPadding.toPx()
+        val xAxisLabelSpacingPx = style.xAsisLabelSpacing.toPx()
 
         val xLabelTextLayoutResults = visibleDataPoints.map {
             measurer.measure(
@@ -98,10 +102,32 @@ fun LineChart(
 
         val viewPortHeightPx = size.height -
                 (maxXLabelHeight + 2 * verticalPaddingPx + xLabelLineHeight + xAxisLabelSpacingPx)
+
+        val labelViewPortHeightPx = viewPortHeightPx + xLabelLineHeight
+        val labelCountExcludingLastLabel =
+            ((labelViewPortHeightPx / (xLabelLineHeight + minLabelSpacingYPx))).toInt()
+
+        val valueIncrement = (maxYValue - minYValue) / labelCountExcludingLastLabel
+
+        val yLabels = (0..labelCountExcludingLastLabel).map {
+            ValueLabel(
+                value = maxYValue - (valueIncrement * it),
+                unit = unit
+            )
+        }
+
+        val yLabelTextLayoutResults = yLabels.map {
+            measurer.measure(
+                text = it.formatted(),
+                style = textStyle
+            )
+        }
+        val maxYLabelWidth = yLabelTextLayoutResults.maxOfOrNull { it.size.width } ?: 0
+
         val viewPortTopY = verticalPaddingPx + xLabelLineHeight + 10f
         val viewPortRightX = size.width
         val viewPortBottomY = viewPortTopY + viewPortHeightPx
-        val viewPortLeftX = 2f * horizontalPaddingPx
+        val viewPortLeftX = 2f * horizontalPaddingPx + maxYLabelWidth
         val viewPort = Rect(
             left = viewPortLeftX,
             top = viewPortTopY,
@@ -110,15 +136,120 @@ fun LineChart(
         )
 
         drawRect(
-            color = Color.Green,
+            color = Color.Green.copy(alpha = 0.3f),
             topLeft = viewPort.topLeft,
             size = viewPort.size
         )
 
+        xLabelWidth = maxXLabelWidth + xAxisLabelSpacingPx
+
+        xLabelTextLayoutResults.forEachIndexed { index, result ->
+            val x = viewPortLeftX + xAxisLabelSpacingPx / 2f + xLabelWidth * index
+
+            drawText(
+                textLayoutResult = result,
+                topLeft = Offset(
+                    x = x,
+                    y = viewPortBottomY + xAxisLabelSpacingPx
+                ),
+                color = if (index == selectedDataPointIndex) {
+                    style.selectedColor
+                } else {
+                    style.unselectedColor
+                }
+            )
+
+            if (showHelperLines) {
+                drawLine(
+
+                    color = if (index == selectedDataPointIndex) {
+                        style.selectedColor
+                    } else {
+                        style.unselectedColor
+                    },
+                    start = Offset(
+                        x = x + result.size.width / 2f,
+                        y = viewPortBottomY
+                    ),
+                    end = Offset(
+                        x = x + result.size.width / 2f,
+                        y = viewPortTopY
+                    ),
+                    strokeWidth = style.helperLinesThicknessPx
+                )
+            }
+            if (selectedDataPointIndex == index) {
+                val valueLabel = ValueLabel(
+                    value = visibleDataPoints[index].y,
+                    unit = unit
+                )
+                val valueResult = measurer.measure(
+                    text = valueLabel.formatted(),
+                    style = textStyle.copy(
+                        color = style.selectedColor
+                    ),
+                    maxLines = 1
+                )
+                val textPositionX = if (selectedDataPointIndex == visibleDataPointIndices.last) {
+                    x - valueResult.size.width
+                } else {
+                    x - valueResult.size.width / 2f
+                } + result.size.width / 2f
+
+                val isTextInVisibleRange =
+                    (size.width - textPositionX).roundToInt() in 0..size.width.roundToInt()
+                if (isTextInVisibleRange) {
+                    drawText(
+                        textLayoutResult = valueResult,
+                        topLeft = Offset(
+                            x = textPositionX,
+                            y = viewPortTopY - valueResult.size.height - 10f
+                        ),
+                        color = style.selectedColor
+                    )
+                }
+            }
+        }
+
+        val heightRequiredForLabels = xLabelLineHeight * (labelCountExcludingLastLabel + 1)
+        val remainingHeightForLabels = (labelViewPortHeightPx - heightRequiredForLabels)
+        val spaceBetweenLabels = remainingHeightForLabels / labelCountExcludingLastLabel
+
+        yLabelTextLayoutResults.forEachIndexed { index, result ->
+            val x = horizontalPaddingPx + maxYLabelWidth - result.size.width.toFloat()
+
+            val y =
+                viewPortTopY + index * (xLabelLineHeight + spaceBetweenLabels) - xLabelLineHeight / 2f
+            drawText(
+                textLayoutResult = result,
+                topLeft = Offset(
+                    x = x,
+                    y = y
+                ),
+                color = style.selectedColor
+
+            )
+
+            if (showHelperLines) {
+                drawLine(
+                    color = style.unselectedColor,
+                    start = Offset(
+                        x = viewPortLeftX,
+                        y = y + result.size.height.toFloat() / 2f
+                    ),
+                    end = Offset(
+                        x = viewPortRightX,
+                        y = y + result.size.height.toFloat() / 2f
+                    ),
+                    strokeWidth = style.helperLinesThicknessPx
+                )
+            }
+        }
     }
 }
 
-@PreviewLightDark
+
+@Preview(widthDp = 1000)
 @Composable
 fun LineChartPreview() {
     CryptoTrackerTheme {
@@ -134,7 +265,7 @@ fun LineChartPreview() {
             chartLineColor = Color.Black,
             unselectedColor = Color(0xFF7C7C7C),
             selectedColor = Color.Black,
-            helperLinesThicknessPx = 5f,
+            helperLinesThicknessPx = 1.5f,
             axisLinesThicknessPx = 5f,
             labelFontSize = 14.sp,
             minYLabelSpacing = 25.dp,
@@ -154,7 +285,7 @@ fun LineChartPreview() {
             }
         }
         LineChart(
-            dataPoints  = dataPoints,
+            dataPoints = dataPoints,
             style = style,
             visibleDataPointIndices = 0..19,
             unit = "$",
