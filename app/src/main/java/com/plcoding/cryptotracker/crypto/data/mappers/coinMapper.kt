@@ -7,7 +7,7 @@ import com.plcoding.cryptotracker.crypto.domain.CoinPrice
 import java.time.Instant
 import java.time.ZoneId
 
-fun CoinDto.toCoin():Coin {
+fun CoinDto.toCoin(): Coin {
     return Coin(
         id = id,
         rank = rank,
@@ -19,12 +19,12 @@ fun CoinDto.toCoin():Coin {
     )
 }
 
-fun CoinPriceDto.toCoinPrice() : CoinPrice {
+fun CoinPriceDto.toCoinPrice(): CoinPrice {
     return CoinPrice(
         priceUsd = priceUsd,
         dateTime = Instant
             .ofEpochMilli(time)
-            .atZone(ZoneId.of("UTC"))
+            .atZone(ZoneId.systemDefault())
 
     )
 }
